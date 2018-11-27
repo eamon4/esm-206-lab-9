@@ -31,6 +31,8 @@ Use this template to follow along in Lab Week 9. Each code chunk you'll need is 
 
 # a. Load packages 'tidyverse' and 'stargazer':
 
+library(tidyverse)
+library(stargazer)
 
 
 ```
@@ -41,10 +43,12 @@ Use this template to follow along in Lab Week 9. Each code chunk you'll need is 
 
 # a. Read in data as 'homes':
 
+homes <- read_csv("slo_homes.csv")
 
 # b. Filter to only include cities "San Luis Obispo", "Santa Maria-Orcutt", "Atascadero", and "Arroyo Grande", and call this new subset 'homes_sub':
 
-
+homes_sub <- homes %>% 
+  filter(City == "Arroyo Grande" | City == "Atascadero" | City == "San Luis Obispo" | City == "Santa Maria-Orcutt")
 
 ```
 
@@ -106,10 +110,15 @@ Use summary() to view the model output and statistics.
 ```{r saturated}
 
 # a. Saturated model: 
+homes_lm1 <- lm(Price ~ City + Bedrooms + Bathrooms + SqFt +PricePerSqFt +Status, data = homes_sub)
 
+# Note price per sq ft is calculated from the dependent vaiable price. This can lead to biased overfitting of model results 
+
+# Another problem is co-linearity. Bedrooms, bathrooms and sq ft are all indicators of size. Therefore we should just pick one
 
 # b. Model summary:
 
+summary(homes_lm1)
 ```
 
 The next model: Exclude price per square foot, and bedrooms/bathrooms (since these are largely explained by square footage...)
@@ -118,8 +127,13 @@ The next model: Exclude price per square foot, and bedrooms/bathrooms (since the
 
 # a. Updated model with variables City, SqFt, and Status:
 
+homes_lm2 <- lm(Price ~ City + SqFt + Status, data =homes_sub)
+
 # b. Model summary:
 
+summary(homes_lm2)
+
+# Coefficent for San Luis Obispo means that we expect a house in San Luis Obispo to sell for $34525.40 more than Arryo Grande holding all else constant  
 ```
 
 Wait...but what if I wanted everything to be with respect to a Regular sale status? Then I need to change my factor levels. We've done this before, here we'll use a different function (fct_relevel) from *forcats* package in the tidyverse. 
@@ -128,20 +142,25 @@ Wait...but what if I wanted everything to be with respect to a Regular sale stat
 
 # a. Set Status to class 'factor'
 
+# First check class of status column in the console  - note its a character that the lm function is treating as a factor
+homes_sub$Status <- factor(homes_sub$Status)
 
 # b. Check to ensure it's a factor now
 
 
 # c. Check levels:
 
+levels(homes_sub$Status)
 
 # d. Reassign reference level of "Status" to "Regular":
 
+homes_sub$Status <- fct_relevel(homes_sub$Status, "Regular")
 
 # e. Now run the regression again - same equation, but now the reference level is different (Status = Regular): 
 
+homes_lm3 <- lm(Price ~ City + SqFt + Status, data =homes_sub)
 
-
+summary(homes_lm3)
 ```
 
 Interpret the coefficients and statistical outcomes above. 
@@ -156,7 +175,9 @@ Then we can evaluate model diagnostics using the plot() function:
 ```{r diagnostics}
 
 # a. Model diagnostics:
+plot(homes_lm3)
 
+# Overall, heteroscedasticity is ok and residulas look normally distributed. Further, mathmatically and logically the model seems to make sense
 ```
 
 ###6. Model comparison by Akaike Information Criterion
@@ -167,7 +188,12 @@ The AIC is a quantitative metric for model "optimization" that balances complexi
 
 # a. AIC values for each model
 
+sat_aic <- AIC(homes_lm1) # 10699.24
+final_aic <- AIC(homes_lm3) # 11147.99
+
 # Answer: which would you pick? 
+
+# Despite the higher AIC I think the final verson (homes_lm3) because the first itteration has variables that are based on the dependent variable and has issues of co-linearity, making its use inappropriate
 
 ```
 
@@ -177,6 +203,7 @@ The AIC is a quantitative metric for model "optimization" that balances complexi
 
 # a. Prepare a nice regression table:
 
+lm_table <- stargazer(homes_lm1, homes_lm2, homes_lm3, type = "html")
 
 
 # Note: If you want to work with this in Word, save to html, open, copy and paste into Word. 
@@ -213,7 +240,7 @@ df_new <- data.frame(City = rep(c("San Luis Obispo",
                                 each = 60), 
                      SqFt = rep(seq(from = 500,
                                     to = 3500, 
-                                    length = 20), 
+                                    length = 20), # Number of observations
                                 times = 12), 
                      Status = rep(c("Regular",
                                     "Foreclosure",
@@ -229,9 +256,11 @@ Make predictions for the new data using predict():
 
 # a. Make predictions using the new data frame:
 
+price_predict <- predict(homes_lm3, newdata = df_new, se.fit = TRUE, interval = "confidence")
+
 # b. Bind predictions to the data to make it actually useful:
 
-
+predict_df <- data.frame(df_new, price_predict)
 
 ```
 
@@ -241,7 +270,11 @@ Then visualize it!
 
 # Create a line graph with square footage on the x-axis, predicted price on y-axis, with color dependent on City and facet_wrapped by sale status (follow along):
 
+predict_graph <- ggplot(predict_df, aes(x = SqFt, y = fit.fit)) +
+  geom_line(aes(color = City)) +
+  facet_wrap(~Status)
 
+predict_graph
 ```
 
 END LAB
